@@ -1,0 +1,48 @@
+# 有新提交（包括网页上传到 inbox/ 的 Word）时：解析 → 把整理结果提交回仓库 → 生成网站并发布到 GitHub Pages
+name: 整理并发布复盘
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: 解析 Word 并生成网站
+        run: python3 scripts/build.py
+
+      - name: 把整理结果提交回仓库
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data docx inbox
+          if ! git diff --cached --quiet; then
+            git commit -m "自动整理复盘"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
