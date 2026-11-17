@@ -253,7 +253,7 @@ $("go").onclick = async () => {
     say("上传完成，网站正在自动整理发布……");
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 5000));
-      const r = await gh(`/actions/runs?branch=main&per_page=5&created=>=${t0}`); const runs = (await r.json()).workflow_runs || [];
+      const r = await gh(`/actions/runs?branch=main&per_page=5&created=${encodeURIComponent(">=" + t0)}`); const runs = (await r.json()).workflow_runs || [];
       if (!runs.length) continue;
       const busy = runs.some(x => x.status !== "completed"), bad = runs.find(x => x.status === "completed" && x.conclusion !== "success" && x.conclusion !== "cancelled");
       if (bad) { say(`自动发布失败：<a href="${bad.html_url}" target="_blank" rel="noopener">查看日志</a>`, "err"); break; }
