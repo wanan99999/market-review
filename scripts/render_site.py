@@ -506,5 +506,8 @@ def render(DATA, DOCX, OUT, REPO):
     _w(os.path.join(OUT, "index.html"), index_page(days))
     _w(os.path.join(OUT, "upload.html"), page("上传复盘 · 收盘复盘", UPLOAD.replace("__REPO__", REPO), 0, "上传当天的 Word 复盘"))
     _w(os.path.join(OUT, "days.json"), json.dumps([dict(date=r["date"], title=r["title"]) for r in days], ensure_ascii=False))
+    # 每日数据也公开发布（供「市场看板」聚合 App / 小程序读取）
+    os.makedirs(os.path.join(OUT, "data"), exist_ok=True)
+    for r in days: _w(os.path.join(OUT, "data", r["date"] + ".json"), json.dumps(r, ensure_ascii=False))
     _w(os.path.join(OUT, ".nojekyll"), "")
     print(f"site: {len(days)} days -> _site/")
