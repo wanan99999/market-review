@@ -509,5 +509,7 @@ def render(DATA, DOCX, OUT, REPO):
     # 每日数据也公开发布（供「市场看板」聚合 App / 小程序读取）
     os.makedirs(os.path.join(OUT, "data"), exist_ok=True)
     for r in days: _w(os.path.join(OUT, "data", r["date"] + ".json"), json.dumps(r, ensure_ascii=False))
+    # 首页（往期列表 + 近期走势）要用到全部日期的数据：合成一个文件，不含正文
+    _w(os.path.join(OUT, "all.json"), json.dumps([{k: v for k, v in r.items() if k not in ("paras", "warnings", "source")} for r in days], ensure_ascii=False))
     _w(os.path.join(OUT, ".nojekyll"), "")
     print(f"site: {len(days)} days -> _site/")
