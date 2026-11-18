@@ -20,7 +20,14 @@ def wan_u(v): return "" if v is None else ("万亿" if v >= 1e4 else "亿")
 def arrow(v): return "" if v is None or v == 0 else ("▲" if v > 0 else "▼")
 
 # ---------------------------------------------------------------- 外壳
-def page(title, body, depth=0, desc=""):
+FN = "https://wanan99999.github.io/finance-news-daily/"
+def cross(date):
+    """与「每日财经要闻」网站互跳：首页→首页；单日页→同一天的要闻（那天没有要闻时，脚本把链接改回要闻首页）"""
+    if not date: return f'<a class="xsite" href="{FN}">财经要闻<span aria-hidden="true">›</span></a>'
+    return (f'<a class="xsite" id="xsite" href="{FN}d/{date}.html"><span class="xs-k">当日财经要闻</span><span aria-hidden="true">›</span></a>'
+            f"<script>fetch('{FN}days.json',{{cache:'no-store'}}).then(r=>r.json()).then(l=>{{if(!l.some(x=>x.date==='{date}')){{const a=document.getElementById('xsite');a.href='{FN}';a.querySelector('.xs-k').textContent='财经要闻';}}}}).catch(()=>{{}});</script>")
+
+def page(title, body, depth=0, desc="", date=None):
     pre = "../" * depth
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -38,7 +45,7 @@ def page(title, body, depth=0, desc=""):
 <body>
 <header class="mast"><div class="mast-in">
   <a class="brand" href="{pre}index.html"><span class="mark" aria-hidden="true"></span>收盘复盘</a>
-  <nav class="mast-nav"><a href="{pre}index.html#archive">往期</a><a class="cta" href="{pre}upload.html">上传复盘</a></nav>
+  <nav class="mast-nav"><a href="{pre}index.html#archive">往期</a><a class="cta" href="{pre}upload.html">上传复盘</a>{cross(date)}</nav>
 </div></header>
 <main class="wrap">
 {body}
@@ -227,9 +234,9 @@ def day_page(r, prev, nxt):
 {idx_tiles(r)}
 {f'<section class="card breadth-card"><div class="sec-h"><h2>涨跌分布</h2></div>{breadth(r["breadth"])}{stats(r)}</section>' if r["breadth"].get("up") is not None else ""}
 {f'<section class="card"><div class="sec-h"><h2>行业强弱</h2><span class="sec-note">申万一级 · 涨幅前五 / 跌幅前五</span></div>{sectors(r["top"], r["bottom"])}</section>' if r["top"] or r["bottom"] else ""}
-<article class="card article"><div class="sec-h"><h2>复盘原文</h2><a class="dl" href="../docx/{r["date"]}.docx" download="{r["date"]}_收盘复盘.docx">下载 Word</a></div>{prose(r["paras"])}</article>
+<article class="card article"><div class="sec-h"><h2>{"市场数据" if r.get("generated") else "复盘原文"}</h2>{'<span class="sec-note">由行情数据计算生成 · 不含点评</span>' if r.get("generated") else f'<a class="dl" href="../docx/{r["date"]}.docx" download="{r["date"]}_收盘复盘.docx">下载 Word</a>'}</div>{prose(r["paras"])}</article>
 {nav}"""
-    return page(f'{r["title"]} · 收盘复盘', body, 1, r["headline"])
+    return page(f'{r["title"]} · 收盘复盘', body, 1, r["headline"], r["date"])
 
 UPLOAD = """<a class="back" href="index.html">返回</a>
 <section class="lead day"><div class="lead-text"><div class="eyebrow">上传后自动整理发布，约 1–2 分钟</div><h1>上传复盘</h1>
@@ -421,6 +428,10 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .mg-h { display: grid; gap: 4px; padding: 0 2px 12px; margin-bottom: 12px; border-bottom: 1px solid var(--rule) }
 .mg-t { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--ink) } .mg-t b { font-size: 26px; font-family: var(--numf); margin: 0 2px }
 .mg-s { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--ink-2) } .ms { display: inline-flex; align-items: center; gap: 6px } .ms .chg { font-size: 13px; padding: 0 8px 0 6px } .ms b { font-size: 15px }
+/* 与财经要闻互跳 */
+.xsite { display: inline-flex; align-items: center; gap: 6px; background: var(--up); color: #fff !important; padding: 5px 12px 5px 16px; border-radius: 999px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px -2px rgba(0,0,0,.35) }
+.xsite span[aria-hidden] { font-size: 18px; line-height: 1; margin-top: -2px } .xsite:hover { filter: brightness(1.1); text-decoration: none }
+@media (max-width: 520px) { .mast-nav { gap: 10px; font-size: 13px } .mast-nav a[href$="#archive"] { display: none } .xsite, .mast-nav .cta { padding: 4px 11px } }
 /* 回到顶部 */
 .totop { position: fixed; right: max(18px, env(safe-area-inset-right, 0px)); bottom: max(18px, env(safe-area-inset-bottom, 0px)); z-index: 20; font: inherit; font-size: 12px; font-weight: 500;
   width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--rule); background: var(--navy); color: var(--navy-ink); cursor: pointer;
