@@ -44,6 +44,8 @@ def page(title, body, depth=0, desc=""):
 {body}
 </main>
 <footer class="foot"><div class="foot-in"><span>每日 A 股收盘复盘</span><span>上传 Word 后自动整理发布 · 红涨绿跌</span></div></footer>
+<button class="totop" id="totop" type="button" aria-label="回到顶部" title="回到顶部"><span aria-hidden="true"></span>顶部</button>
+<script>(function(){{const b=document.getElementById("totop");const f=()=>b.classList.toggle("on",scrollY>400);addEventListener("scroll",f,{{passive:true}});f();b.addEventListener("click",()=>scrollTo({{top:0,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}}));}})();</script>
 </body>
 </html>
 """
@@ -419,6 +421,13 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .mg-h { display: grid; gap: 4px; padding: 0 2px 12px; margin-bottom: 12px; border-bottom: 1px solid var(--rule) }
 .mg-t { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--ink) } .mg-t b { font-size: 26px; font-family: var(--numf); margin: 0 2px }
 .mg-s { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--ink-2) } .ms { display: inline-flex; align-items: center; gap: 6px } .ms .chg { font-size: 13px; padding: 0 8px 0 6px } .ms b { font-size: 15px }
+/* 回到顶部 */
+.totop { position: fixed; right: max(18px, env(safe-area-inset-right, 0px)); bottom: max(18px, env(safe-area-inset-bottom, 0px)); z-index: 20; font: inherit; font-size: 12px; font-weight: 500;
+  width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--rule); background: var(--navy); color: var(--navy-ink); cursor: pointer;
+  display: grid; place-items: center; align-content: center; gap: 0; box-shadow: 0 6px 18px -6px rgba(0,0,0,.35);
+  opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity .2s, transform .2s }
+.totop span { width: 9px; height: 9px; border-left: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); margin-top: 4px }
+.totop.on { opacity: 1; transform: none; pointer-events: auto } .totop:hover { filter: brightness(1.2) }
 /* ---------- responsive ---------- */
 @media (max-width: 860px) { .trends { grid-template-columns: minmax(0, 1fr) } }
 @media (max-width: 720px) {
@@ -436,19 +445,22 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 """
 
+def _w(path, text):
+    with open(path, "w", encoding="utf8") as fh: fh.write(text)
+
 def render(DATA, DOCX, OUT, REPO):
     shutil.rmtree(OUT, ignore_errors=True)
     for d in ("d", "assets", "docx"): os.makedirs(os.path.join(OUT, d), exist_ok=True)
     def _load(fp):
         with open(fp, encoding="utf8") as fh: return json.load(fh)
     days = sorted((_load(os.path.join(DATA, f)) for f in os.listdir(DATA) if f.endswith(".json")), key=lambda r: r["date"]) if os.path.isdir(DATA) else []
-    open(os.path.join(OUT, "assets", "style.css"), "w", encoding="utf8").write(CSS)
+    _w(os.path.join(OUT, "assets", "style.css"), CSS)
     for i, r in enumerate(days):
-        open(os.path.join(OUT, "d", r["date"] + ".html"), "w", encoding="utf8").write(day_page(r, days[i - 1] if i else None, days[i + 1] if i + 1 < len(days) else None))
+        _w(os.path.join(OUT, "d", r["date"] + ".html"), day_page(r, days[i - 1] if i else None, days[i + 1] if i + 1 < len(days) else None))
         src = os.path.join(DOCX, r["date"] + ".docx")
         if os.path.exists(src): shutil.copyfile(src, os.path.join(OUT, "docx", r["date"] + ".docx"))
-    open(os.path.join(OUT, "index.html"), "w", encoding="utf8").write(index_page(days))
-    open(os.path.join(OUT, "upload.html"), "w", encoding="utf8").write(page("上传复盘 · 收盘复盘", UPLOAD.replace("__REPO__", REPO), 0, "上传当天的 Word 复盘"))
-    json.dump([dict(date=r["date"], title=r["title"]) for r in days], open(os.path.join(OUT, "days.json"), "w", encoding="utf8"), ensure_ascii=False)
-    open(os.path.join(OUT, ".nojekyll"), "w").write("")
+    _w(os.path.join(OUT, "index.html"), index_page(days))
+    _w(os.path.join(OUT, "upload.html"), page("上传复盘 · 收盘复盘", UPLOAD.replace("__REPO__", REPO), 0, "上传当天的 Word 复盘"))
+    _w(os.path.join(OUT, "days.json"), json.dumps([dict(date=r["date"], title=r["title"]) for r in days], ensure_ascii=False))
+    _w(os.path.join(OUT, ".nojekyll"), "")
     print(f"site: {len(days)} days -> _site/")
