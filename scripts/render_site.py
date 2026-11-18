@@ -140,14 +140,41 @@ def trend_panels(days):
 
 # ---------------------------------------------------------------- 页面
 def archive(days):
-    items = ""
-    for d in reversed(days):
-        dt = d_of(d["date"])
-        chips = "".join(f'<span class="ai"><em>{E(i["name"][:2])}</em>{chip(i["chg"])}</span>' for i in d["indices"][:3])
-        items += (f'<a class="ar" href="d/{d["date"]}.html"><div class="ar-date"><span class="ar-d num">{dt.day:02d}</span><span class="ar-m">{dt.month} 月 · 周{WEEK[dt.weekday()]}</span></div>'
-                  f'<div class="ar-main"><h3>{E(d["title"])}</h3><p>{E(d["headline"])}</p><div class="ar-chips">{chips}</div></div>'
-                  f'<div class="ar-side">{breadth(d["breadth"], "sm")}<span class="ar-tv"><span class="num">{wan(d.get("turnover"))}</span> {wan_u(d.get("turnover"))}</span></div></a>')
-    return f'<section class="sec" id="archive"><div class="sec-h"><h2>往期复盘</h2><span class="sec-note">共 {len(days)} 期</span></div><div class="arlist">{items}</div></section>'
+    """往期按月分组：月份导航 + 每月一个可折叠分组（最近一个月默认展开）。每月一行汇总：期数、上证月内涨跌、平均成交额。"""
+    months = {}
+    for d in reversed(days): months.setdefault(d["date"][:7], []).append(d)
+    nav = "".join(f'<a class="mchip" href="#m-{m}">{int(m[:4])} 年 {int(m[5:])} 月<small>{len(v)}</small></a>' for m, v in months.items())
+    groups = ""
+    for gi, (m, ds) in enumerate(months.items()):
+        items = ""
+        for d in ds:
+            dt = d_of(d["date"])
+            chips = "".join(f'<span class="ai"><em>{E(i["name"][:2])}</em>{chip(i["chg"])}</span>' for i in d["indices"][:3])
+            items += (f'<a class="ar" href="d/{d["date"]}.html"><div class="ar-date"><span class="ar-d num">{dt.day:02d}</span><span class="ar-m">{dt.month} 月<br>周{WEEK[dt.weekday()]}</span></div>'
+                      f'<div class="ar-main"><h3>{E(d["title"])}</h3><p>{E(d["headline"])}</p><div class="ar-chips">{chips}</div></div>'
+                      f'<div class="ar-side">{breadth(d["breadth"], "sm")}<span class="ar-tv"><span class="num">{wan(d.get("turnover"))}</span> {wan_u(d.get("turnover"))}</span></div></a>')
+        # 月度汇总：上证（第一个指数）月内各日涨跌连乘、上涨天数、平均成交额
+        first = ds[0]["indices"][0]["name"] if ds[0]["indices"] else None
+        chg = [next((i["chg"] for i in d["indices"] if i["name"] == first), None) for d in ds]
+        chg = [c for c in chg if c is not None]
+        mret = None
+        if chg:
+            mret = 1.0
+            for c in chg: mret *= 1 + c / 100
+            mret = (mret - 1) * 100
+        upd = sum(1 for c in chg if c > 0)
+        tvs = [d["turnover"] for d in ds if d.get("turnover")]
+        summ = (f'<span class="ms">{len(ds)} 期</span>'
+                + (f'<span class="ms" title="按已收录交易日的涨跌幅连乘">{E(first)} 本月 {chip(mret)}</span>' if mret is not None else "")
+                + (f'<span class="ms">上涨 {upd} 天 / 下跌 {len(chg) - upd} 天</span>' if chg else "")
+                + (f'<span class="ms">日均成交 <b class="num">{wan(sum(tvs) / len(tvs))}</b> {wan_u(sum(tvs) / len(tvs))}</span>' if tvs else ""))
+        groups += (f'<details class="mg" id="m-{m}"{" open" if gi == 0 else ""}><summary><span class="mg-t">{int(m[:4])} 年 <b>{int(m[5:])}</b> 月</span>'
+                   f'<span class="mg-s">{summ}</span><span class="mg-ic" aria-hidden="true"></span></summary><div class="arlist">{items}</div></details>')
+    navh = f'<nav class="mnav" aria-label="按月份跳转">{nav}</nav>' if len(months) > 1 else ""
+    return (f'<section class="sec" id="archive"><div class="sec-h"><h2>往期复盘</h2><span class="sec-note">共 {len(days)} 期 · {len(months)} 个月</span></div>'
+            f'{navh}<div class="mgs">{groups}</div></section>'
+            '<script>/* 点月份导航时展开对应月份 */document.querySelectorAll(".mchip").forEach(a=>a.addEventListener("click",()=>{const g=document.querySelector(a.getAttribute("href"));if(g)g.open=true;}));'
+            'if(location.hash.startsWith("#m-")){const g=document.querySelector(location.hash);if(g)g.open=true;}</script>')
 
 def index_page(days):
     if not days:
@@ -351,7 +378,7 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .arlist { display: grid; gap: 10px }
 .ar { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); padding: 16px 20px; color: var(--ink); box-shadow: var(--shadow); transition: border-color .15s, transform .15s }
 .ar:hover { text-decoration: none; border-color: var(--ink-3); transform: translateY(-1px) }
-.ar-date { display: grid; justify-items: start; border-right: 1px solid var(--rule); padding-right: 16px } .ar-d { font-size: 40px; font-weight: 700; line-height: 1 } .ar-m { font-size: 12.5px; color: var(--ink-3); margin-top: 4px }
+.ar-date { display: grid; justify-items: start; border-right: 1px solid var(--rule); padding-right: 16px } .ar-d { font-size: 40px; font-weight: 700; line-height: 1 } .ar-m { font-size: 12.5px; color: var(--ink-3); margin-top: 4px; line-height: 1.45; white-space: nowrap }
 .ar-main h3 { font-family: var(--serif); font-size: 18px; margin: 0 } .ar-main p { margin: 2px 0 8px; color: var(--ink-2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .ar-chips { display: flex; gap: 12px; flex-wrap: wrap } .ai { display: inline-flex; align-items: center; gap: 6px; font-size: 13px } .ai em { font-style: normal; color: var(--ink-3) } .ai .chg { font-size: 13.5px; padding: 0 8px 0 6px }
 .ar-side { display: grid; justify-items: end; gap: 8px; font-size: 13px; color: var(--ink-2) } .ar-tv .num { font-size: 20px; font-weight: 700; color: var(--ink) }
@@ -379,6 +406,19 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .btn.ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--rule); padding: 8px 16px }
 .status { margin-top: 12px; font-size: 14.5px; color: var(--ink-2) } .status.ok { color: var(--dn) } .status.err { color: var(--up) }
 .empty { text-align: center; padding: 72px 20px; display: grid; gap: 12px; justify-items: center } .empty h1 { font-family: var(--serif); margin: 0 }
+/* 往期按月 */
+.mnav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px }
+.mchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper); color: var(--ink-2); font-size: 13.5px }
+.mchip small { font-family: var(--numf); color: var(--ink-3); font-size: 12px } .mchip:hover { text-decoration: none; border-color: var(--ink-3); color: var(--ink) }
+.mgs { display: grid; gap: 14px }
+.mg > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 10px 2px 12px; border-bottom: 1px solid var(--rule) }
+.mg > summary::-webkit-details-marker { display: none }
+.mg-t { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--ink) } .mg-t b { font-size: 26px; font-family: var(--numf); margin: 0 2px }
+.mg-s { grid-column: 1 / -1; grid-row: 2; display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--ink-2) } .ms { display: inline-flex; align-items: center; gap: 6px } .ms em { font-style: normal; color: var(--ink-3); font-size: 12px } .ms .chg { font-size: 13px; padding: 0 8px 0 6px } .ms b { font-size: 15px }
+.mg-ic { grid-column: 2; grid-row: 1; width: 10px; height: 10px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); transform: rotate(45deg); margin: 0 6px 4px; transition: transform .15s }
+.mg[open] .mg-ic { transform: rotate(225deg); margin-bottom: -2px }
+.mg[open] > .arlist { margin-top: 12px }
+.mg > summary:hover .mg-t { color: var(--accent) }
 /* ---------- responsive ---------- */
 @media (max-width: 860px) { .trends { grid-template-columns: minmax(0, 1fr) } }
 @media (max-width: 720px) {
