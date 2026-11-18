@@ -124,16 +124,44 @@ def trend_panels(days):
     n = len(ds); X = lambda k: L + (k + .5) * (W - L - R) / n; bw = min((W - L - R) / n * .56, 22)
     lab = "".join(f'<text x="{X(k):.1f}" y="{H - 6}" text-anchor="middle">{d["date"][5:].replace("-", "/")}</text>'
                   for k, d in enumerate(ds) if n <= 8 or k % max(1, n // 6) == 0 or k == n - 1)
-    # 上证
-    first = ds[-1]["indices"][0]["name"] if ds[-1]["indices"] else None
-    vals = [next((i["close"] for i in d["indices"] if i["name"] == first), None) for d in ds]
-    p1 = ""
-    if first and all(v is not None for v in vals):
-        lo, hi = min(vals), max(vals); pad = (hi - lo) * .15 or 10; lo -= pad; hi += pad
-        Y = lambda v: T + (hi - v) / (hi - lo) * (H - T - B)
-        d = "M" + "L".join(f"{X(k):.1f},{Y(v):.1f}" for k, v in enumerate(vals))
-        dots = "".join(f'<circle cx="{X(k):.1f}" cy="{Y(v):.1f}" r="3.5"><title>{ds[k]["date"]} {first} {v:,.2f}</title></circle>' for k, v in enumerate(vals))
-        p1 = f'<figure class="tp"><figcaption>{E(first)} 收盘</figcaption><svg viewBox="0 0 {W} {H}" role="img" aria-label="{E(first)}收盘走势"><path d="{d}" class="ln"/>{dots}{lab}</svg></figure>'
+    # 上证指数日 K 蜡烛线（红涨绿跌：收盘≥开盘为红）。缺开高低收的日期用「前收→收盘」近似
+    p1 = ""; nm = "上证指数"
+    K = []
+    for k, d in enumerate(ds):
+        c = next((i["close"] for i in d["indices"] if i["name"] == nm), None)
+        o = (d.get("ohlc") or {}).get(nm)
+        if o: K.append(o)
+        elif c is not None:
+            pc = K[-1][3] if K else c; K.append([pc, max(pc, c), min(pc, c), c])
+        else: K.append(None)
+    if any(K):
+        CW, CH, CL, CR, CT, CB = 760, 230, 8, 52, 12, 24
+        cx = lambda k: CL + (k + .5) * (CW - CL - CR) / n; cw = max(min((CW - CL - CR) / n * .62, 14), 2)
+        lo = min(x[2] for x in K if x); hi = max(x[1] for x in K if x); pad = (hi - lo) * .06 or 10; lo -= pad; hi += pad
+        Y = lambda v: CT + (hi - v) / (hi - lo) * (CH - CT - CB)
+        step = 10 ** max(0, len(str(int((hi - lo) / 4))) - 1); step = next(m * step for m in (1, 2, 5, 10) if (hi - lo) / (m * step) <= 5)
+        g, t = "", (int(lo // step) + 1) * step
+        while t < hi:
+            near = K[-1] and abs(Y(t) - Y(K[-1][3])) < 14   # 离最新价标签太近的刻度不写数字
+            g += f'<line x1="{CL}" x2="{CW - CR}" y1="{Y(t):.1f}" y2="{Y(t):.1f}" class="gl"/>' + ("" if near else f'<text x="{CW - CR + 6}" y="{Y(t) + 4:.1f}" class="yl">{t:,.0f}</text>'); t += step
+        cs = ""
+        for k, x in enumerate(K):
+            if not x: continue
+            o, h_, l_, c = x; up = c >= o; cl = "cu" if up else "cd"
+            top, bot = Y(max(o, c)), Y(min(o, c)); prev = K[k - 1][3] if k and K[k - 1] else None
+            chg = f"  {((c / prev - 1) * 100):+.2f}%" if prev else ""
+            cs += (f'<g class="{cl}"><title>{ds[k]["date"]}  开 {o:,.2f}  高 {h_:,.2f}  低 {l_:,.2f}  收 {c:,.2f}{chg}</title>'
+                   f'<line x1="{cx(k):.1f}" x2="{cx(k):.1f}" y1="{Y(h_):.1f}" y2="{Y(l_):.1f}"/>'
+                   f'<rect x="{cx(k) - cw / 2:.1f}" y="{top:.1f}" width="{cw:.1f}" height="{max(bot - top, 1):.1f}"/></g>')
+        last = K[-1]
+        mark = (f'<line x1="{CL}" x2="{CW - CR}" y1="{Y(last[3]):.1f}" y2="{Y(last[3]):.1f}" class="lastl"/>'
+                f'<rect x="{CW - CR + 2}" y="{Y(last[3]) - 9:.1f}" width="{CR - 4}" height="18" rx="4" class="lastb {"cu" if last[3] >= last[0] else "cd"}"/>'
+                f'<text x="{CW - CR / 2:.1f}" y="{Y(last[3]) + 4:.1f}" text-anchor="middle" class="lastt">{last[3]:,.0f}</text>') if last else ""
+        clab = "".join(f'<text x="{cx(k):.1f}" y="{CH - 6}" text-anchor="middle">{d["date"][5:].replace("-", "/")}</text>'
+                       for k, d in enumerate(ds) if n <= 12 or k % max(1, n // 8) == 0 or k == n - 1)
+        p1 = (f'<figure class="tp wide"><figcaption>{nm} 日K <span class="lg"><i class="up"></i>阳线 <i class="dn"></i>阴线</span></figcaption>'
+              f'<div class="kscroll" id="kscroll"><svg viewBox="0 0 {CW} {CH}" role="img" aria-label="{nm}日K线，最近 {n} 个交易日">{g}{cs}{mark}{clab}</svg></div></figure>'
+              '<script>(function(){const k=document.getElementById("kscroll");if(k)k.scrollLeft=k.scrollWidth;})();</script>')
     # 涨跌家数
     mx = max(max(d["breadth"].get("up") or 0, d["breadth"].get("down") or 0) for d in ds) or 1; mid = T + (H - T - B) / 2; hh = (H - T - B) / 2 - 2
     bars = "".join(f'<g><title>{d["date"]} 上涨 {d["breadth"].get("up") or 0:.0f} / 下跌 {d["breadth"].get("down") or 0:.0f}</title>'
@@ -380,7 +408,11 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .sb .up { background: var(--up) } .sb .dn { background: var(--dn) } .sb .flat { background: var(--flat) }
 .sv { text-align: right; font-weight: 600; font-size: 16px }
 /* trends */
-.trends { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+.trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px } .tp.wide { grid-column: 1 / -1 } .kscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin }
+@media (max-width: 680px) { .kscroll svg { min-width: 620px } }
+.tp .gl { stroke: var(--rule-2); stroke-width: 1 } .tp .yl { font-size: 11.5px }
+.tp .cu line { stroke: var(--up); stroke-width: 1.2 } .tp .cu rect { fill: var(--up) } .tp .cd line { stroke: var(--dn); stroke-width: 1.2 } .tp .cd rect { fill: var(--dn) }
+.tp .lastl { stroke: var(--ink-3); stroke-dasharray: 3 3; stroke-width: 1 } .tp .lastb.cu { fill: var(--up) } .tp .lastb.cd { fill: var(--dn) } .tp .lastt { fill: #fff; font-size: 11.5px; font-weight: 600 }
 .tp { margin: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r); padding: 14px 14px 8px; box-shadow: var(--shadow); min-width: 0 }
 .tp figcaption { font-size: 13.5px; font-weight: 500; color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px }
 .tp .lg { font-size: 12px; color: var(--ink-3); font-weight: 400; display: inline-flex; align-items: center; gap: 4px } .tp .lg i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-left: 6px }
@@ -441,7 +473,7 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .totop span { width: 9px; height: 9px; border-left: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); margin-top: 4px }
 .totop.on { opacity: 1; transform: none; pointer-events: auto } .totop:hover { filter: brightness(1.2) }
 /* ---------- responsive ---------- */
-@media (max-width: 860px) { .trends { grid-template-columns: minmax(0, 1fr) } }
+@media (max-width: 680px) { .trends { grid-template-columns: minmax(0, 1fr) } }
 @media (max-width: 720px) {
   .wrap { padding: 20px 16px 56px; gap: 18px } .mast-in { padding: 10px 16px }
   .lead { grid-template-columns: minmax(0, 1fr); gap: 12px } .tv { text-align: left } .tv-v { justify-content: flex-start } .tv-v .num { font-size: 40px }

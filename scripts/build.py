@@ -92,5 +92,57 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render_site
 def render(): render_site.render(DATA, DOCX, OUT, REPO)
 
+
+# ================================================================ 上证指数日 K（开高低收），用于首页蜡烛线
+def _get(url, headers=None):
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (market-review build)", **(headers or {})})
+    with urllib.request.urlopen(req, timeout=15) as r: return r.read().decode("utf8", "replace")
+
+def _ohlc_sina():
+    t = _get("https://quotes.sina.cn/cn/api/jsonp_v2.php/var=/CN_MarketDataService.getKLineData?symbol=sh000001&scale=240&ma=no&datalen=120",
+             {"Referer": "https://finance.sina.com.cn"})
+    rows = json.loads(t[t.index("["): t.rindex("]") + 1])
+    return {r["day"][:10]: [float(r["open"]), float(r["high"]), float(r["low"]), float(r["close"])] for r in rows}
+
+def _ohlc_yahoo():
+    j = json.loads(_get("https://query1.finance.yahoo.com/v8/finance/chart/000001.SS?range=6mo&interval=1d"))["chart"]["result"][0]
+    off = j["meta"].get("gmtoffset", 28800); q = j["indicators"]["quote"][0]; out = {}
+    for k, ts in enumerate(j["timestamp"]):
+        v = [q["open"][k], q["high"][k], q["low"][k], q["close"][k]]
+        if None not in v: out[datetime.datetime.utcfromtimestamp(ts + off).date().isoformat()] = [float(x) for x in v]
+    return out
+
+def _ohlc_em():
+    j = json.loads(_get("https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.000001&fields1=f1&fields2=f51,f52,f53,f54,f55&klt=101&fqt=0&lmt=120"))
+    out = {}
+    for line in j["data"]["klines"]:
+        d, o, c, h, l = line.split(",")[:5]; out[d] = [float(o), float(h), float(l), float(c)]
+    return out
+
+def enrich_ohlc():
+    """给缺开高低收的日期补上证指数日 K；收盘价与文档一致（差 ≤0.05 点）才写入。三个来源依次尝试。"""
+    if not os.path.isdir(DATA): return
+    need = []
+    for f in sorted(os.listdir(DATA)):
+        if not f.endswith(".json"): continue
+        with open(os.path.join(DATA, f), encoding="utf8") as fh: r = json.load(fh)
+        if "ohlc" not in r: need.append((f, r))
+    if not need: return
+    for name, src in (("sina", _ohlc_sina), ("yahoo", _ohlc_yahoo), ("eastmoney", _ohlc_em)):
+        try: k = src()
+        except Exception as e: print(f"ohlc {name} 失败: {repr(e)[:120]}"); continue
+        left = []
+        for f, r in need:
+            sh = next((i for i in r["indices"] if i["name"] == "上证指数"), None); v = k.get(r["date"])
+            if sh and v and abs(v[3] - sh["close"]) <= 0.05:
+                r["ohlc"] = {"上证指数": [round(x, 2) for x in v]}
+                with open(os.path.join(DATA, f), "w", encoding="utf8") as fh: json.dump(r, fh, ensure_ascii=False, indent=1)
+                print(f"ohlc {r['date']} <- {name}")
+            else: left.append((f, r))
+        need = left
+        if not need: break
+    for f, r in need: print(f"ohlc {r['date']} 未取到，蜡烛线用收盘价近似")
+
 if __name__ == "__main__":
-    ingest(); render()
+    ingest(); enrich_ohlc(); render()
