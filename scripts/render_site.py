@@ -9,6 +9,7 @@
 import os, json, html, shutil, datetime, re
 
 E = html.escape
+VER = datetime.datetime.now().strftime("%y%m%d%H%M%S")  # 样式表版本号，避免浏览器缓存旧样式
 WEEK = "一二三四五六日"
 
 def d_of(s): return datetime.date.fromisoformat(s)
@@ -39,7 +40,7 @@ def page(title, body, depth=0, desc="", date=None):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700;900&display=swap">
-<link rel="stylesheet" href="{pre}assets/style.css">
+<link rel="stylesheet" href="{pre}assets/style.css?v={VER}">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23182c4f'/%3E%3Cpath d='M7 21l5-6 4 3 9-9' stroke='%23f5f3ee' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -330,7 +331,7 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .brand { color: var(--navy-ink); font-family: var(--serif); font-weight: 900; font-size: 20px; letter-spacing: .08em; display: inline-flex; align-items: center; gap: 10px }
 .brand:hover { text-decoration: none } .mark { width: 10px; height: 10px; border-radius: 2px; background: linear-gradient(135deg, var(--up) 50%, var(--dn) 50%) }
 .mast-nav { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 14px } .mast-nav a { color: rgba(245,243,238,.82) } .mast-nav a:hover { color: #fff; text-decoration: none }
-.mast-nav .cta { color: var(--navy); background: var(--navy-ink); padding: 5px 16px; border-radius: 999px; font-weight: 500 } .mast-nav .cta:hover { color: var(--navy); background: #fff }
+.mast-nav .cta { font-weight: 500 }
 .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 72px; display: grid; gap: 22px; min-width: 0 }
 .foot { border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 12.5px }
 .foot-in { max-width: 1040px; margin: 0 auto; padding: 18px 20px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap }
@@ -429,9 +430,9 @@ a { color: var(--accent); text-decoration: none } a:hover { text-decoration: und
 .mg-t { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--ink) } .mg-t b { font-size: 26px; font-family: var(--numf); margin: 0 2px }
 .mg-s { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--ink-2) } .ms { display: inline-flex; align-items: center; gap: 6px } .ms .chg { font-size: 13px; padding: 0 8px 0 6px } .ms b { font-size: 15px }
 /* 与财经要闻互跳 */
-.xsite { display: inline-flex; align-items: center; gap: 6px; background: var(--up); color: #fff !important; padding: 5px 12px 5px 16px; border-radius: 999px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px -2px rgba(0,0,0,.35) }
-.xsite span[aria-hidden] { font-size: 18px; line-height: 1; margin-top: -2px } .xsite:hover { filter: brightness(1.1); text-decoration: none }
-@media (max-width: 520px) { .mast-nav { gap: 10px; font-size: 13px } .mast-nav a[href$="#archive"] { display: none } .xsite, .mast-nav .cta { padding: 4px 11px } }
+.mast-nav .xsite { display: inline-flex; align-items: center; gap: 6px; background: var(--navy-ink); color: var(--navy); padding: 5px 12px 5px 16px; border-radius: 999px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px -2px rgba(0,0,0,.35) }
+.xsite span[aria-hidden] { font-size: 18px; line-height: 1; margin-top: -2px } .mast-nav .xsite:hover { background: #fff; color: var(--navy); text-decoration: none }
+@media (max-width: 520px) { .mast-nav { gap: 10px; font-size: 13px } .mast-nav a[href$="#archive"] { display: none } .mast-nav .xsite { padding: 4px 10px 4px 13px } }
 /* 回到顶部 */
 .totop { position: fixed; right: max(18px, env(safe-area-inset-right, 0px)); bottom: max(18px, env(safe-area-inset-bottom, 0px)); z-index: 20; font: inherit; font-size: 12px; font-weight: 500;
   width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--rule); background: var(--navy); color: var(--navy-ink); cursor: pointer;
